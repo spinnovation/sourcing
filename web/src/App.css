@@ -1,0 +1,207 @@
+/* ---------------------------------------------------------
+   Premium Dashboard Style: Glassmorphism & Neon Theme
+   --------------------------------------------------------- */
+
+:root {
+  --primary-color: #00d2ff;  /* 네온 블루: 주요 상호작용 요소 색상 변수 */
+  --secondary-color: #3a7bd5;  /* 딥 블루: 보조 색상 변수 */
+  --accent-color: #ff007a;  /* 마젠타: 랭킹 및 강조 포인트 색상 변수 */
+  --bg-dark: #0f172a;  /* 가독성 높은 다크 배경색 변수 */
+  --glass-bg: rgba(255, 255, 255, 0.05);  /* 투명한 유리 질감 배경색 변수 */
+  --glass-border: rgba(255, 255, 255, 0.1);  /* 투명한 경계선 색상 변수 */
+  --text-main: #f8fafc;  /* 기본 텍스트 색상 변수 */
+  --text-dim: #94a3b8;  /* 흐릿한 텍스트 색상 변수 */
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-main);
+  background-image: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 100%);
+  min-height: 100vh;
+}
+
+.dashboard-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+/* --- Premium Header: Glassmorphism Design --- */
+.premium-header {
+  text-align: center;
+  padding: 3rem 0;
+  margin-bottom: 2rem;
+}
+
+.premium-header h1 {
+  font-size: 3rem;
+  font-weight: 800;
+  background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 2rem;
+  letter-spacing: -1px;
+}
+
+.search-box {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 10px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.category-select, input[type="text"], button {
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.category-select { cursor: pointer; }
+input[type="text"] { flex: 1; min-width: 300px; }
+input[type="text"]:focus { border-color: var(--primary-color); box-shadow: 0 0 15px rgba(0, 210, 255, 0.3); }
+
+button {
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 210, 255, 0.4);
+}
+
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* --- Filter Bar: Navigation Stlye --- */
+.filter-bar {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-bottom: 3rem;
+  padding: 1rem;
+}
+
+.filter-bar button {
+  background: transparent;
+  border: 1px solid var(--glass-border);
+}
+
+.filter-bar button.active {
+  background: var(--primary-color);
+  color: black;
+  border-color: var(--primary-color);
+}
+
+/* --- Ranking Table: Grid Layout --- */
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 25px;
+}
+
+.product-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  padding: 20px;
+  position: relative;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  overflow: hidden;
+}
+
+.product-card:hover {
+  transform: translateY(-10px);
+  border-color: var(--primary-color);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+}
+
+.rank-badge {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  background: var(--accent-color);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 0.9rem;
+  z-index: 2;
+  box-shadow: 0 4px 10px rgba(255, 0, 122, 0.4);
+}
+
+.product-card img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-radius: 16px;
+  margin-bottom: 15px;
+  background: #1e293b;
+}
+
+.product-info h3 {
+  font-size: 1.1rem;
+  height: 2.8rem;
+  overflow: hidden;
+  margin-bottom: 10px;
+  line-height: 1.4;
+  color: var(--text-main);
+}
+
+.price {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  margin-bottom: 5px;
+}
+
+.mall {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 15px;
+}
+
+.stats {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 15px;
+  border-top: 1px solid var(--glass-border);
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.loading-spinner {
+  text-align: center;
+  font-size: 1.5rem;
+  padding: 5rem;
+  color: var(--primary-color);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { opacity: 0.4; }
+}
