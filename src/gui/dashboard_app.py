@@ -46,6 +46,7 @@ try:
     from src.analysis.scorer import MomentumScorer
     from src.analysis.ai_analyzer import AIAnalyzer
     from src.analysis.vector_search import VectorSearch
+    from src.analysis.pain_point_analyzer import get_blog_reviews, analyze_pain_points
 except ImportError:
     from api.shopping import ShoppingAPI
     from api.trend import TrendAPI
@@ -54,6 +55,7 @@ except ImportError:
     from analysis.scorer import MomentumScorer
     from analysis.ai_analyzer import AIAnalyzer
     from analysis.vector_search import VectorSearch
+    from analysis.pain_point_analyzer import get_blog_reviews, analyze_pain_points
 
 class NumericItem(QTableWidgetItem):
     """
@@ -342,6 +344,7 @@ class AdvancedTrendApp(QMainWindow):
         self.sourcing_tab = QWidget(); self.init_sourcing_tab(); self.tabs.addTab(self.sourcing_tab, "💰 Product Sourcing")
         self.hidden_tab = QWidget(); self.init_hidden_tab(); self.tabs.addTab(self.hidden_tab, "🎯 Hidden Semantic")
         self.cross_tab = QWidget(); self.init_cross_tab(); self.tabs.addTab(self.cross_tab, "🌐 Cross Semantic")
+        self.pain_tab = QWidget(); self.init_pain_point_tab(); self.tabs.addTab(self.pain_tab, "🥊 Pain Point 분석")
 
         workspace.addWidget(self.tabs)
 
@@ -466,6 +469,18 @@ class AdvancedTrendApp(QMainWindow):
                 self.ai_report_box.append(f"\n✅ [크로스 탐색 완료!] Cross Semantic 탭에서 이종 카테고리의 융합 상품을 확인하세요. (기준: {cross_query})")
             else:
                 self.ai_report_box.append(f"\n❌ 크로스 검색('{cross_query}') 결과가 시장에 전혀 없어 4번째 탭의 갱신을 생략합니다.")
+            
+            # 4. 소비자 Pain Point 분석 (Blog API + Gemini)
+            self.ai_report_box.append(f"\n\n(실제 소비자들의 블로그 후기를 수집하여 페인 포인트를 분석하는 중입니다... 📝)")
+            QApplication.processEvents()
+            
+            blog_context = get_blog_reviews(f"{keyword} 단점")
+            if blog_context:
+                pain_point_report = analyze_pain_points(blog_context)
+                self.pain_text_box.setText(pain_point_report)
+                self.ai_report_box.append(f"✅ [분석 완료] 'Pain Point 분석' 탭에서 소비자 불만 및 소싱 전략을 확인하세요.")
+            else:
+                self.pain_text_box.setText("블로그 리뷰 데이터를 수집하지 못했습니다.")
                 
         finally:
             self._set_loading_state(False)
@@ -542,6 +557,31 @@ class AdvancedTrendApp(QMainWindow):
         self.nav_trend_table.setHorizontalHeaderLabels(["순위", "키워드", "월간 검색량", "경쟁도", "\U0001f30a 블루오션", "분석"])
         self.nav_trend_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.nav_trend_table)
+
+    def init_pain_point_tab(self):
+        """소비자 불만(Pain Point) 분석 탭의 UI를 초기화합니다."""
+        layout = QVBoxLayout(self.pain_tab)
+        
+        header = QLabel("🔍 소비자 Real Voice 분석: 블로그 리뷰 데이터 기반 단점 및 소싱 전략")
+        header.setStyleSheet("font-size: 15px; font-weight: bold; color: #FCA5A5; margin: 10px 0;")
+        layout.addWidget(header)
+        
+        self.pain_text_box = QTextEdit()
+        self.pain_text_box.setReadOnly(True)
+        self.pain_text_box.setStyleSheet("""
+            background-color: #1A1A1A;
+            color: #F8FAFC;
+            font-size: 13px;
+            line-height: 1.6;
+            padding: 15px;
+            border: 1px solid #334155;
+            border-radius: 8px;
+        """)
+        layout.addWidget(self.pain_text_box)
+        
+        tip_label = QLabel("💡 Tip: 여기서 도출된 '개선점'이 반영된 제품을 1688에서 찾으면 강력한 경쟁력을 가질 수 있습니다.")
+        tip_label.setStyleSheet("color: #94A3B8; font-style: italic; margin-top: 5px;")
+        layout.addWidget(tip_label)
 
     def render_top_keywords_table(self, items: List[Dict[str, Any]]):
         """
