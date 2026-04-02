@@ -4,6 +4,7 @@
 # 환경 변수 (API KEY 등 보안 필수 정보)
 .env
 .env.*
+*.env
 
 # 가상환경
 venv/
