@@ -6,7 +6,7 @@ import datetime
 import webbrowser
 import json
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 
 # .env 환경변수 자동 로드 (API 키 등)
@@ -66,9 +66,11 @@ class NumericItem(QTableWidgetItem):
         try:
             val1 = float(self.data(Qt.ItemDataRole.UserRole))
             val2 = float(other.data(Qt.ItemDataRole.UserRole))
+            # N/A(-1.0)는 항상 가장 뒤로 정렬되도록 처리
+            if val1 < 0: return False
+            if val2 < 0: return True
             return val1 < val2
         except (ValueError, TypeError):
-            # 변환할 수 없는 예외 케이스는 기본 알파벳 정렬을 수행하는 안전망
             return super().__lt__(other)
 
 class MarginCalculatorDialog(QDialog):
@@ -200,6 +202,7 @@ class AdvancedTrendApp(QMainWindow):
         # [수정] 모든 객체 준비 완료 후 데이터 트렌드 패널 업데이트 (딜레이 없이 즉시 실행)
         print("🚀 [System] 초기 데이터랩 트렌드 로드 시도 중...")
         self.update_trends_panel()
+        self.refresh_realtime_trends() # [추가] 실시간 트렌드 탭 초기화
         
         # [추가] 트렌드 키워드 클릭 시 자동 검색 연결
         self.trend_shopping_list.itemDoubleClicked.connect(lambda item: self.search_input.setText(item.text().split(": ")[-1]))
@@ -345,6 +348,7 @@ class AdvancedTrendApp(QMainWindow):
         self.hidden_tab = QWidget(); self.init_hidden_tab(); self.tabs.addTab(self.hidden_tab, "🎯 Hidden Semantic")
         self.cross_tab = QWidget(); self.init_cross_tab(); self.tabs.addTab(self.cross_tab, "🌐 Cross Semantic")
         self.pain_tab = QWidget(); self.init_pain_point_tab(); self.tabs.addTab(self.pain_tab, "🥊 Pain Point 분석")
+        self.trend_list_tab = QWidget(); self.init_trend_list_tab(); self.tabs.addTab(self.trend_list_tab, "🚀 실시간 트렌드")
 
         workspace.addWidget(self.tabs)
 
@@ -583,6 +587,69 @@ class AdvancedTrendApp(QMainWindow):
         tip_label.setStyleSheet("color: #94A3B8; font-style: italic; margin-top: 5px;")
         layout.addWidget(tip_label)
 
+    def init_trend_list_tab(self):
+        """네이버 쇼핑 및 분야별 실시간 인기 검색어 탭 초기화"""
+        layout = QVBoxLayout(self.trend_list_tab)
+        
+        top_ctrl = QHBoxLayout()
+        self.trend_cat_combo = QComboBox()
+        self.trend_cat_combo.addItems([
+            "패션의류 (50000000)", "패션잡화 (50000001)", "화장품/미용 (50000002)", 
+            "디지털/가전 (50000003)", "가구/인테리어 (50000004)", "출산/육아 (50000005)",
+            "식품 (50000006)", "스포츠/레저 (50000007)", "생활/건강 (50000008)"
+        ])
+        refresh_btn = QPushButton("🔄 새시침")
+        refresh_btn.clicked.connect(self.refresh_realtime_trends)
+        top_ctrl.addWidget(QLabel("🎯 카테고리 선택:"))
+        top_ctrl.addWidget(self.trend_cat_combo)
+        top_ctrl.addWidget(refresh_btn)
+        top_ctrl.addStretch()
+        layout.addLayout(top_ctrl)
+
+        self.trend_list_table = QTableWidget()
+        self.trend_list_table.setColumnCount(3)
+        self.trend_list_table.setHorizontalHeaderLabels(["순위", "급상승 키워드", "비고"])
+        self.trend_list_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.trend_list_table.cellDoubleClicked.connect(lambda r, c: self.search_input.setText(self.trend_list_table.item(r, 1).text()) or self.perform_research())
+        layout.addWidget(self.trend_list_table)
+
+    def refresh_realtime_trends(self):
+        """데이터랩 내부 API를 호출하여 테이블을 갱신합니다."""
+        selected_text = self.trend_cat_combo.currentText()
+        cid = selected_text.split("(")[-1].replace(")", "").strip()
+        
+        url = "https://datalab.naver.com/shoppingInsight/getCategoryKeywordRank.naver"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://datalab.naver.com/shoppingInsight/sCategory.naver",
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "X-Requested-With": "XMLHttpRequest"
+        }
+        
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        start_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+        
+        payload = {
+            "cid": cid, "timeUnit": "date", "startDate": start_date, "endDate": end_date,
+            "device": "", "gender": "", "ages": "", "page": 1, "count": 20
+        }
+        
+        try:
+            import requests
+            resp = requests.post(url, headers=headers, data=payload)
+            if resp.status_code == 200:
+                data = resp.json()
+                ranks = data.get("ranks", [])
+                self.trend_list_table.setRowCount(0)
+                for i, item in enumerate(ranks):
+                    self.trend_list_table.insertRow(i)
+                    self.trend_list_table.setItem(i, 0, QTableWidgetItem(str(item['rank'])))
+                    self.trend_list_table.setItem(i, 1, QTableWidgetItem(item['keyword']))
+                    self.trend_list_table.setItem(i, 2, QTableWidgetItem("HOT"))
+                print(f"✅ [Trend] {selected_text} 실시간 트렌드 로드 완료")
+        except Exception as e:
+            print(f"❌ [Trend Error] {e}")
+
     def render_top_keywords_table(self, items: List[Dict[str, Any]]):
         """
         🔍 상품 키워드 분석 탭:
@@ -764,29 +831,9 @@ class AdvancedTrendApp(QMainWindow):
         for row, item in enumerate(items):
             title = item['title'].replace("<b>", "").replace("</b>", "")
             
-            # 💡 [고정 난수 모델 (Deterministic Simulation) 롤백]
-            # 스크래핑 전면 포기. 대신 검색(새로고침)할 때마다 숫자가 바뀌는 싸구려 무작위성을 없애기 위해,
-            # 상품의 고유 이름과 URL 텍스트를 지문(Hash Seed)으로 사용하여 영구히 고정된 모의 숫자가 나오도록 유인
-            unique_seed = hash(title + item.get('link', '')) % 10000
-            seeded_rnd = random.Random(unique_seed)
-            
-            # 실제 네이버 쇼핑 노출 순위 데이터로 가중치 반영 (1위는 트래픽 몰림, 50위는 저조함)
-            rank_weight = max(1.0, 50.0 - row) / 50.0 
-            
-            base_sales = seeded_rnd.randint(500, 15000)
-            sales = int(base_sales * rank_weight) + 50
-            
-            views = int(sales * seeded_rnd.uniform(30.0, 60.0))
-            rev_cnt = int(sales * seeded_rnd.uniform(0.01, 0.15))
-            rating = round(seeded_rnd.uniform(3.8, 5.0), 1)
-            
-            # 2주 판매 모멘텀(2W Growth)은 상위 랭킹(1~15위)을 선점한 제품군에 폭발하도록 설정
-            if row < 15 and seeded_rnd.random() > 0.4:
-                growth_pct = seeded_rnd.randint(50, 350) 
-            elif row < 35:
-                growth_pct = seeded_rnd.randint(0, 140)   
-            else:
-                growth_pct = seeded_rnd.randint(-30, 80)
+            # 💡 [데이터 무결성 강화] 
+            # 네이버 쇼핑 API에서 직접 제공하지 않는 지표(조회수, 판매량 등)는 
+            # 사용자 요청에 따라 가상 데이터를 생성하지 않고 N/A로 표시합니다.
             
             # 셀 아이템 주입
             self.table.setItem(row, 0, self._create_int_item(row + 1, "위"))
@@ -794,21 +841,13 @@ class AdvancedTrendApp(QMainWindow):
             name_item.setData(Qt.ItemDataRole.UserRole, item['link'])
             name_item.setForeground(QColor("#00D2FF"))
             self.table.setItem(row, 1, name_item)
-            self.table.setItem(row, 2, self._create_int_item(int(item['lprice']), "원"))  # 수치 정렬 엔진 커스텀 적용
-            self.table.setItem(row, 3, self._create_int_item(views))
-            self.table.setItem(row, 4, self._create_int_item(sales))
-            self.table.setItem(row, 5, self._create_int_item(rev_cnt))
-            self.table.setItem(row, 6, self._create_int_item(rating)) # 평점도 수치 연산 적용
             
-            # 판매량 증가속도 양수/음수 직관적인 지표 컬러 마킹 (디테일 연계)
-            growth_item = self._create_int_item(growth_pct, "%")
-            if growth_pct >= 150:
-                growth_item.setForeground(QColor("#F472B6")) # 폭발적 상승 마젠타
-            elif growth_pct >= 0:
-                growth_item.setForeground(QColor("#34D399")) # 안정적 상승 초록
-            else:
-                growth_item.setForeground(QColor("#F87171")) # 하락 추세 빨강
-            self.table.setItem(row, 7, growth_item)
+            self.table.setItem(row, 2, self._create_int_item(int(item['lprice']), "원"))
+            self.table.setItem(row, 3, self._create_int_item("N/A"))
+            self.table.setItem(row, 4, self._create_int_item("N/A"))
+            self.table.setItem(row, 5, self._create_int_item("N/A"))
+            self.table.setItem(row, 6, self._create_int_item("N/A"))
+            self.table.setItem(row, 7, self._create_int_item("N/A"))
             
         self.table.setSortingEnabled(True)
 
@@ -854,48 +893,23 @@ class AdvancedTrendApp(QMainWindow):
         self.cross_table.setSortingEnabled(False)
         self.cross_table.setRowCount(len(items))
         for row, item in enumerate(items):
-            sim_score = int(item.get('semantic_similarity', 0.0) * 100)
-            clean_title = item.get('clean_title', '')
-            
-            # 결정론적 고정 난수 시드(Seed) 생성
-            unique_seed = hash(clean_title + item.get('link', '')) % 10000
-            seeded_rnd = random.Random(unique_seed)
-            
-            # 크로스 랭킹(1~10위) 프리미엄 적용 보정
-            rank_weight = max(1.0, 10.0 - row) / 10.0
-            base_sales = seeded_rnd.randint(200, 12000)
-            sales = int(base_sales * rank_weight) + 20
-            
-            if sim_score >= 80 and seeded_rnd.random() > 0.3:
-                growth_pct = seeded_rnd.randint(100, 450) # 높은 유사도는 폭등장 연출
-            else:
-                growth_pct = seeded_rnd.randint(-15, 140)
-            
+            title = item.get('clean_title', '')
             self.cross_table.setItem(row, 0, self._create_int_item(row + 1, "순위"))
             
+            sim_score = int(item.get('semantic_similarity', 0.0) * 100)
             score_item = self._create_int_item(sim_score, "% 유사도")
-            if sim_score >= 80: score_item.setForeground(QColor("#A7F3D0")) # 높은 일치도 밝은 민트
+            if sim_score >= 80: score_item.setForeground(QColor("#A7F3D0"))
             elif sim_score >= 60: score_item.setForeground(QColor("#34D399")) 
             self.cross_table.setItem(row, 1, score_item)
             
-            name_item = QTableWidgetItem(clean_title)
+            name_item = QTableWidgetItem(title)
             name_item.setData(Qt.ItemDataRole.UserRole, item['link'])
-            name_item.setForeground(QColor("#10B981")) # 메인 에메랄드 그린 컬러
-            
+            name_item.setForeground(QColor("#10B981"))
             self.cross_table.setItem(row, 2, name_item)
-            self.cross_table.setItem(row, 3, self._create_int_item(int(item['lprice']), "원"))  # 커스텀 적용
             
-            self.cross_table.setItem(row, 4, self._create_int_item(sales))
-            
-            # 판매량 증가속도 컬러 마킹
-            growth_item = self._create_int_item(growth_pct, "%")
-            if growth_pct >= 150:
-                growth_item.setForeground(QColor("#F472B6")) # 급상승 마젠타
-            elif growth_pct >= 0:
-                growth_item.setForeground(QColor("#34D399")) # 안정 상승 그린
-            else:
-                growth_item.setForeground(QColor("#F87171")) # 하락 레드
-            self.cross_table.setItem(row, 5, growth_item)
+            self.cross_table.setItem(row, 3, self._create_int_item(int(item.get('lprice', 0)), "원"))
+            self.cross_table.setItem(row, 4, self._create_int_item("N/A"))
+            self.cross_table.setItem(row, 5, self._create_int_item("N/A"))
             
         self.cross_table.setSortingEnabled(True)
 
@@ -1253,10 +1267,19 @@ class AdvancedTrendApp(QMainWindow):
     # 숫자형 데이터를 정렬 가능한 테이블 커스텀 아이템(NumericItem)으로 파싱하는 헬퍼 메서드
     def _create_int_item(self, value: Any, suffix: str = "") -> QTableWidgetItem:
         item = NumericItem()
-        item.setData(Qt.ItemDataRole.UserRole, float(value)) # 내부 백그라운드 연산을 위한 '진짜 순수 숫자 100%' 보존
-        item.setData(Qt.ItemDataRole.EditRole, value) # 엑셀 출력을 위한 오리지널 데이터
         
-        # UI 화면에 표출할 예쁜 텍스트 콤마(,) 및 소수점 서식 지정
+        # N/A 또는 데이터 없음 처리
+        if value == "N/A" or value is None:
+            item.setData(Qt.ItemDataRole.UserRole, -1.0)
+            item.setData(Qt.ItemDataRole.EditRole, -1.0)
+            item.setText("N/A")
+            item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            item.setForeground(QColor("#64748B")) # 흐릿한 회색 처리
+            return item
+
+        item.setData(Qt.ItemDataRole.UserRole, float(value))
+        item.setData(Qt.ItemDataRole.EditRole, value)
+        
         if isinstance(value, int) or (isinstance(value, float) and value.is_integer()):
             item.setText(f"{int(value):,}{suffix}")
         else:
