@@ -94,3 +94,48 @@ class AIAnalyzer:
         except Exception as e:
             # 호출 실패 시 오류 메시지를 튜플 포맷에 맞춰 반환
             return f"Gemini 분석 중 오류가 발생했습니다: {str(e)}", keyword, keyword
+
+    def batch_extract_keywords(self, titles: List[str]) -> List[str]:
+        """
+        50개 상품의 제목들을 입력받아 각 상품별로 1688 검색에 최적화된 
+        핵심 키워드 1개씩을 추출합니다. (Gemini 2.0 Batch 처리)
+        """
+        if not self.model: return [""] * len(titles)
+        
+        titles_block = "\n".join([f"{i+1}. {t}" for i, t in enumerate(titles[:50])])
+        prompt = f"""
+        다음은 네이버 쇼핑 상품 제목 리스트입니다. 
+        각 상품 제목에서 브랜드를 제외하고, 중국 1688.com에서 해당 상품과 '가장 정확하게 매칭'되는 상품을 찾기 위해 필요한 
+        검색 최적화 핵심 키워드 3단어 이상을 조합해 주세요.
+        
+        [상품 제목 리스트]
+        {titles_block}
+        
+        **출력 규칙:**
+        1. 각 상품당 3가지 이상의 핵심 특징(소재, 형태, 용도, 디자인 등)을 추출하세요.
+        2. 추출된 단어들을 '공백'으로 구분하여 한 줄에 하나씩 출력하십시오. 
+        3. 다른 부연 설명이나 번호는 절대 붙이지 마십시오. (오직 키워드만 출력)
+        
+        **출력 예시:**
+        캠핑 접이식 의자
+        어린이 장난감 피규어 세트
+        주방 저소음 타이머
+        """
+        
+        try:
+            response = self.model.generate_content(prompt)
+            # 결과 텍스트를 줄 단위로 분리하고 공백 제거 (번호가 붙어 있을 경우 대비 안전 장치 포함)
+            raw_lines = response.text.strip().split("\n")
+            keywords = []
+            for line in raw_lines:
+                # 번호가 붙어 넘어왔을 경우 제거 (예: 1. 단어1 단어2 단어3)
+                clean_line = line.split(".")[-1].strip()
+                if clean_line:
+                    keywords.append(clean_line)
+            
+            # 리스트 길이를 맞추기 위해 보정
+            if len(keywords) < len(titles):
+                keywords.extend([""] * (len(titles) - len(keywords)))
+            return keywords[:len(titles)]
+        except Exception:
+            return [""] * len(titles)

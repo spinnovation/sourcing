@@ -1,0 +1,63 @@
+    def update_row_from_paste(self, row, text):
+        """텍스트에서 위안화 가격을 정밀 추출하여 소수점 단위까지 반영합니다."""
+        # 소수점 포함 숫자, 위안화 기호 포함 등 다양한 패턴 통합
+        price_match = re.search(r'(?:¥|￥|价格)?\s*([0-9]+\.[0-9]+|[0-9]+)\s*(?:元)?', text)
+        if price_match:
+            try:
+                cny_val = float(price_match.group(1))
+                # 소수점 2자리까지 유지하여 표시
+                self.sourcing_table.setItem(row, 8, QTableWidgetItem(f"{cny_val:.2f}"))
+                
+                # UI 입력칸 동기화
+                paste_widget = self.sourcing_table.cellWidget(row, 5)
+                if paste_widget and paste_widget.text() != text:
+                    paste_widget.blockSignals(True)
+                    paste_widget.setText(text)
+                    paste_widget.blockSignals(False)
+                
+                self.recalculate_row_margin(row)
+            except: pass
+
+    def on_clipboard_changed(self):
+        """클립보드 변경 감지 시 현재 소싱 중인 제품에 자동 반영하며, 중복 추가를 방지합니다."""
+        if self.last_sourced_row < 0: return
+        cb = QApplication.clipboard()
+        mime = cb.mimeData()
+        changed = False
+        
+        # 1. 이미지 처리 (이미지 복사 또는 드래그 HTML 이미지)
+        if mime.hasImage():
+            img = cb.image()
+            if not img.isNull():
+                pix = QPixmap.fromImage(img)
+                item = self.sourcing_table.item(self.last_sourced_row, 2)
+                if item: item.setIcon(QIcon(pix.scaled(60, 60, Qt.AspectRatioMode.KeepAspectRatio)))
+                changed = True
+        elif mime.hasHtml(): # 이미지가 없을 때만 HTML 이미지 추적 (중복 방지)
+            html = mime.html()
+            img_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', html)
+            if img_match:
+                img_url = img_match.group(1)
+                if img_url.startswith("//"): img_url = "https:" + img_url
+                try:
+                    data = requests.get(img_url, headers={"User-Agent":"Mozilla/5.0"}, timeout=3).content
+                    pix = QPixmap(); pix.loadFromData(data)
+                    item = self.sourcing_table.item(self.last_sourced_row, 2)
+                    if item: item.setIcon(QIcon(pix.scaled(60, 60, Qt.AspectRatioMode.KeepAspectRatio)))
+                    changed = True
+                except: pass
+
+        # 2. 텍스트 가격 기호 감지
+        text = cb.text().strip()
+        if text:
+            price_match = re.search(r'(?:¥|￥|价格)?\s*([0-9]+\.[0-9]+|[0-9]+)\s*(?:元)?', text)
+            if price_match:
+                self.update_row_from_paste(self.last_sourced_row, text)
+                self._highlight_sourcing_row(self.last_sourced_row, active=False)
+                changed = True
+        
+        # 3. 모든 데이터 취합 후 '단 한 번만' 장바구니에 기록 (중복 생성 방지)
+        if changed:
+            self.add_to_basket(self.last_sourced_row)
+
+    def recalculate_row_margin(self, row):
